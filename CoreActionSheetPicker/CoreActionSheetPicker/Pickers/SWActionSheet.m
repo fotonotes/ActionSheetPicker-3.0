@@ -82,33 +82,63 @@ static const enum UIViewAnimationOptions options = UIViewAnimationOptionCurveEas
 
 - (UIWindow *)window
 {
-    if ( SWActionSheetWindow )
+    if (SWActionSheetWindow)
     {
         return SWActionSheetWindow;
     }
     else
     {
         UIWindow *window = nil;
-
-// Handle UIWindow for iOS 13 changes
-#if defined(__IPHONE_13_0)
-        if (@available(iOS 13.0, *)) {
-            UIScene *scene = [UIApplication sharedApplication].connectedScenes.allObjects.firstObject;
-            if (scene && [scene isKindOfClass:[UIWindowScene class]]) {
-                UIWindowScene *windowScene = (UIWindowScene *)scene;
-                window = [[UIWindow alloc] initWithWindowScene:windowScene];
+        
+        // Find the key window's scene, which should be the one visible on the device
+        UIWindowScene *keyScene = nil;
+        
+        // First try to get the scene from the key window (the one the user is interacting with)
+        UIWindow *keyWindow = nil;
+        
+        // iOS 13+ way to get key window
+        NSArray *windows = [UIApplication sharedApplication].windows;
+        for (UIWindow *wnd in windows) {
+            if (wnd.isKeyWindow) {
+                keyWindow = wnd;
+                break;
             }
         }
-#endif
-
-        if (window == nil) {
+        
+        // If we found the key window, get its scene
+        if (keyWindow && keyWindow.windowScene) {
+            keyScene = keyWindow.windowScene;
+        }
+        // Otherwise, fall back to finding the foreground active scene
+        else {
+            for (UIScene *scene in [UIApplication sharedApplication].connectedScenes) {
+                if ([scene isKindOfClass:[UIWindowScene class]] &&
+                    scene.activationState == UISceneActivationStateForegroundActive) {
+                    keyScene = (UIWindowScene *)scene;
+                    break;
+                }
+            }
+        }
+        
+        // If we still don't have a scene, fall back to the first one
+        if (!keyScene) {
+            UIScene *scene = [[UIApplication sharedApplication].connectedScenes.allObjects firstObject];
+            if (scene && [scene isKindOfClass:[UIWindowScene class]]) {
+                keyScene = (UIWindowScene *)scene;
+            }
+        }
+        
+        // Create window with the identified scene
+        if (keyScene) {
+            window = [[UIWindow alloc] initWithWindowScene:keyScene];
+        } else {
             window = [[UIWindow alloc] initWithFrame:[UIScreen mainScreen].bounds];
         }
-
-        window.windowLevel        = self.windowLevel;
-        window.backgroundColor    = [UIColor clearColor];
+        
+        window.windowLevel = self.windowLevel;
+        window.backgroundColor = [UIColor clearColor];
         window.rootViewController = [SWActionSheetVC new];
-
+        
         SWActionSheetWindow = window;
         return SWActionSheetWindow;
     }
@@ -251,7 +281,7 @@ static const enum UIViewAnimationOptions options = UIViewAnimationOptionCurveEas
 
 - (BOOL)prefersStatusBarHidden
 {
-	return [UIApplication sharedApplication].statusBarHidden;
+  return [UIApplication sharedApplication].statusBarHidden;
 }
 
 - (BOOL)gestureRecognizer:(UIGestureRecognizer *)gestureRecognizer shouldReceiveTouch:(UITouch *)touch
